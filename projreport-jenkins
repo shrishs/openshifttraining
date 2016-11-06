@@ -1,0 +1,92 @@
+Create a cicd project ffor jenking related pipeline and start build and deployment in development and testing project/environment
+
+
+
+1)Create a project cicd
+
+2)Import YAML / JSON(https://raw.githubusercontent.com/VeerMuchandi/pipeline-example/master/pipeline.yml)
+
+----------------------------------------------------------
+apiVersion: v1
+kind: BuildConfig
+metadata:
+  name: myfirstpipeline
+  labels:
+    name: myfirstpipeline
+  annotations:
+    pipeline.alpha.openshift.io/uses: '[{"name": "myphp", "namespace": "", "kind": "DeploymentConfig"}]'
+spec:
+  triggers:
+    -
+      type: GitHub
+      github:
+        secret: secret101
+    -
+      type: Generic
+      generic:
+        secret: secret101
+  runPolicy: Serial
+  source:
+    type: None
+  strategy:
+    type: JenkinsPipeline
+    jenkinsPipelineStrategy:
+      jenkinsfile: "node('maven') {\nstage 'build'\nopenshiftBuild(buildConfig: 'myphp', showBuildLogs: 'true')\nstage 'deploy'\nopenshiftDeploy(deploymentConfig: 'myphp')\nopenshiftScale(deploymentConfig: 'myphp',replicaCount: '2')\n}"
+  output:
+  resources:
+  postCommit:
+  -------------------------------------------------------------
+
+3)This will create jenkins pods and pipeline.Jenkins plugin will ensure that jenkins have the same job configured as defined in the jenkinsfile.
+
+4) Change the pipeline config to as follows.
+
+-------------------------------
+node('maven') {
+stage 'buildInDevelopment'
+openshiftBuild(namespace: 'development', buildConfig: 'myapp', showBuildLogs: 'true')
+stage 'deployInDevelopment'
+openshiftDeploy(namespace: 'development', deploymentConfig: 'myapp')
+openshiftScale(namespace: 'development', deploymentConfig: 'myapp',replicaCount: '2')
+stage 'deployInTesting'
+openshiftTag(namespace: 'development', sourceStream: 'myapp',  sourceTag: 'latest', destinationStream: 'myapp', destinationTag: 'promoteToQA')
+openshiftDeploy(namespace: 'testing', deploymentConfig: 'myapp', )
+openshiftScale(namespace: 'testing', deploymentConfig: 'myapp',replicaCount: '3')
+}
+-----------------------------------------
+
+5)Creating a development Project and to provide edit access to the jenkins service account in the development project.so that jenkins can access the the object created in thes
+
+oc new-project development
+oc policy add-role-to-user edit system:serviceaccount:cicd:jenkins -n development
+oc new-project testing
+oc policy add-role-to-user edit system:serviceaccount:cicd:jenkins -n testing
+
+oc policy add-role-to-group system:image-puller system:serviceaccounts:testing -n development
+
+6)Create bc and dc in developemnt as per the pipeline defined in cicd.Make sure to do the following changes in dc
+
+
+One need to specify imageChangeParams: section otherwise it starts picking up images from docker repo instead of internal repo.
+
+
+----------------------------------------------
+ triggers: 
+    -
+      type: ImageChange
+      imageChangeParams:
+        automatic: false
+        containerNames:
+          - myapp
+        from:
+          kind: ImageStreamTag
+          namespace: development
+          name: 'myapp:latest'
+------------------------------------------------------
+
+
+oc create deploymentconfig myapp --image=172.30.0.77:5000/development/myapp:promoteToQA
+oc expose dc myapp --port=8080
+oc expose svc myapp
+Start the pipeline from cicd project and check what is happening in development and testing environment.
+

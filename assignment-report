@@ -1,0 +1,100 @@
+1.Picked up default fiile from /usr/share/doc/openshift-ansible-docs-3.3.22/docs/example-inventories/hosts.ose.example and modified it as attached hosts.ose.example
+
+2.ansible-playbook -i hosts.ose.example /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml
+
+3.Created following user with htpasswd utility 
+admin/admin123
+andrew/admin123
+
+4.Given admin as cluster-role
+oadm policy add-cluster-role-to-user cluster-admin admin
+Now one can login using admin/andrew
+https://loadbalancer1-8d37.oslab.opentlc.com:8443/console/
+
+5.Create a project eastcomp.
+
+6.Add the node selctore lebel.The main idea was to use it as multitenant using differen project and different project resources are distibuted according to the zone.
+oc annotate namespace eastcomp openshift.io/node-selector='region=primary,zone=east' --overwrite
+
+6.Metrics Setting:It is covered as as part of the above installation.No other chnanges were required.
+https://metrics.cloudapps-8d37.oslab.opentlc.com/hawkular/metrics
+
+7.Jenkins Pipeline setting:Created 3 projects cicd,dev and testing.Main Idea was 
+    --to use preview featutre available in Openshift 3.3
+    --Create jenkins pipeline setup in cicd project and use the jenkins plugin DSL to access build and deplyment setup in development and testing project.
+    -Please check the following file attached regarding the enablement/creation of jenkins pipeline.I have not formatted these files and atataching it as I used it for my self learning and installation process.
+         ---jenkins-plugin
+         ---projreport-jenkins  
+
+8.Logging setup:
+I have followed the chapter 26 of following
+https://access.redhat.com/webassets/avalon/d/OpenShift_Container_Platform-3.3-Installation_and_Configuration-en-US/OpenShift_Container_Platform-3.3-Installation_and_Configuration-en-US.pdf
+Some of the important steps are as follows.
+
+
+		oc create configmap logging-deployer \
+		   --from-literal kibana-hostname=kibana.cloudapps-8d37.oslab.opentlc.com \
+		   --from-literal public-master-url=https://loadbalancer1-8d37.oslab.opentlc.com:8443 \
+		   --from-literal es-cluster-size=3 \
+		   --from-literal es-instance-ram=8G
+
+
+
+
+
+		oc edit configmap logging-deployer
+		--------------------------------------------------------
+		   apiVersion: v1
+		data:
+		  curator-nodeselector: region=infra
+		  es-cluster-size: "3"
+		  es-instance-ram: 8G
+		  es-nodeselector: region=infra
+		  kibana-hostname: kibana.cloudapps-8d37.oslab.opentlc.com
+		  kibana-nodeselector: region=infra
+		  public-master-url: https://loadbalancer1-8d37.oslab.opentlc.com:8443
+		kind: ConfigMap
+		metadata:
+		  creationTimestamp: 2016-11-04T14:13:43Z
+		  name: logging-deployer
+		  namespace: logging
+		  resourceVersion: "622736"
+		  selfLink: /api/v1/namespaces/logging/configmaps/logging-deployer
+		  uid: e4552f0a-a298-11e6-9120-2cc2606608ce
+		--------------------------------------------------------
+
+
+    	oc new-app logging-deployer-template  --param IMAGE_VERSION=3.3.0 --param MODE=install --param IMAGE_PREFIX=registry.access.redhat.com/openshift3/
+
+    	One need to labelling the pods in order to get fuentd pod deployed .
+    	oc label node/node.example.com logging-infra-fluentd=true
+
+		 ***  Using NFS storage as a volume or a persistent volume (or via NAS such as Gluster) is
+		not supported for Elasticsearch storage, as Lucene relies on file system behavior that
+		NFS does not supply. 
+		
+
+		One can check logs in kibana.
+		https://kibana.cloudapps-8d37.oslab.opentlc.com/
+
+9.Two diiferent scheduler are deployed on two different infra server and load balanced using DNS.
+Setting are as follows(Please see file attached) /var/named/zones/cloudapps-8d37.oslab.opentlc.com.db.
+
+
+9.Project setting.
+Following machines are provided.
+	cf1-8d37.oslab.opentlc.com
+	loadbalancer1-8d37.oslab.opentlc.com
+	master1.example.com
+	master1.example.com
+	master1.example.com
+	infranode1-8d37.oslab.opentlc.com--130.211.102.95
+	infranode2-8d37.oslab.opentlc.com--104.199.42.109
+	node1.example.com
+	node2.example.com
+	node3.example.com
+	node4.example.com
+	node5.example.com
+	node6.example.com
+
+

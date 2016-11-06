@@ -1,0 +1,95 @@
+jenkins plugin
+----------------
+https://blog.openshift.com/openshift-3-3-pipelines-deep-dive/
+Some great videos are as follows.
+https://blog.openshift.com/create-build-pipelines-openshift-3-3/
+Just for reference
+https://github.com/siamaksade/openshift-cd-demo/tree/openshift-3.3
+
+
+
+1)Edit master-config.yaml
+2)Add extensionScripts under assetConfig ,something like as follows.
+
+assetConfig:
+  extensionScripts:
+  - tech-preview.js
+  logoutURL: ""
+
+
+
+3)Add jenkinsPipelineConfig at the  end of master-config.yaml:
+https://docs.openshift.org/latest/install_config/configuring_pipeline_execution.html
+
+
+
+jenkinsPipelineConfig:
+  autoProvisionEnabled: true
+  templateNamespace: openshift
+  templateName: jenkins-ephemeral
+  serviceName: jenkins
+
+
+4)Create tech-preview.js and add the follwoing content into it
+
+window.OPENSHIFT_CONSTANTS.ENABLE_TECH_PREVIEW_FEATURE.pipelines = true;
+
+
+5)
+systemctl restart atomic-openshift-master-api
+systemctl restart atomic-openshift-master-controller
+
+
+6)
+Synchronization between Jenkins and OpenShift
+----------------------------------------------
+Since the build can be started and managed from OpenShift, you may be wondering how Jenkins knows when to execute the pipeline or how OpenShift knows the state of the pipeline execution. This is accomplished via an additional Jenkins plugin called the OpenShift Sync plugin. As the name implies, this plugin is responsible for synchronizing state between OpenShift and Jenkins.
+When a Pipeline BuildConfig is created, the sync plugin will create a new job in Jenkins to represent the BuildConfig. When a build is started from the BuildConfig, the sync plugin will start the job in Jenkins to perform the execution. And as the job executes within Jenkins, the sync plugin will update the build object in OpenShift with annotation metadata about the state of the execution. This metadata enables the OpenShift web console to display the state of the execution including what pipeline stage is being executed, success or failure of the stage, and how long it has been running.
+This plugin is included in the Jenkins image provided with OpenShift, but it can also be installed to existing Jenkins servers to allow for integration to external Jenkins deployments.
+        A  sample pipeline buildconfig is as follows.
+
+--------------------------------------------------------
+apiVersion: v1
+kind: Template
+metadata:
+  name: test-cicd
+labels:
+  template: test-cicd
+  group: test-cicd
+metadata:
+  annotations:
+    description: create pipeline
+    iconClass: icon-jenkins
+    tags: create-pipeline
+  name: test-cicd
+message: test pipeline config.
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata::wq!
+    labels:
+      app: test-pipeline
+      name: test-pipeline
+    name: test-pipeline
+  spec:
+    runPolicy: Serial
+    source:
+      type: None
+    strategy:
+      jenkinsPipelineStrategy:
+        jenkinsfile: |-
+          node('maven') {
+          stage 'build'
+          openshiftBuild(buildConfig: 'myrubyapp', showBuildLogs: 'true')
+          stage 'deploy'
+          openshiftDeploy(deploymentConfig: 'myrubyapp')}
+      type: JenkinsPipeline
+      type: Generic
+  status:
+    lastVersion: 0
+    --------------------------------------------------------
+
+
+    7)
+    One can check the complete dsl for jnekins plugin at the following.
+    https://github.com/openshift/jenkins-plugin
