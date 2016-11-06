@@ -3,8 +3,8 @@
 2.ansible-playbook -i hosts.ose.example /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml
 
 3.Created following user with htpasswd utility 
-admin/admin123
-andrew/admin123
+admin
+andrew
 
 4.Given admin as cluster-role
 oadm policy add-cluster-role-to-user cluster-admin admin
